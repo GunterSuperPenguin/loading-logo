@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+
+        <title>JB loading Screen</title>
+        <style>
+            .background {
+                background-repeat:no-repeat;
+                background-attachment:fixed;
+                background-position:center;
+                background-size: cover;
+            }
+
+        </style>
+
+    </head>
+
+    <body class="background"></body>
+
+    <script language="javascript">
+
+        var images = [
+            "https://i.imgur.com/6XuGaQX.png",
+            "https://i.imgur.com/q1XJG5o.png",
+            "https://i.imgur.com/6m1HhOb.png",
+            "https://i.imgur.com/XoBmORO.png",
+            "https://i.imgur.com/BZkAngS.png",
+            "https://i.imgur.com/xciNk2m.png",
+            "https://i.imgur.com/9Xs4voH.png"
+
+        ];
+
+        document.body.style.backgroundImage = "url('" + images[ Math.floor( Math.random() * images.length ) ] + "')";
+
+    </script>
+</html>
