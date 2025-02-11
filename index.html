@@ -3,7 +3,7 @@
 
     <head>
 
-        <title>JB loading Screen</title>
+        <title>Loading Screen</title>
         <style>
             .background {
                 background-repeat:no-repeat;
@@ -21,13 +21,23 @@
     <script language="javascript">
 
         var images = [
-            "https://i.imgur.com/8EPKVaG.jpeg",
-            "https://i.imgur.com/9lsSjCR.jpeg",
-            "https://i.imgur.com/kBMeUx8.jpeg"
+            "https://i.imgur.com/ZRiw0vv.jpeg"
 
         ];
 
         document.body.style.backgroundImage = "url('" + images[ Math.floor( Math.random() * images.length ) ] + "')";
 
     </script>
+    <script type="text/javascript">
+
+        (function() {
+        var volume = 1;
+            $("audio").each(function(){ this.volume = volume/1; });
+        });
+    
+        </script>
+                <audio autoplay controls loop hidden>
+                    <source src="./music.ogg" type="audio/ogg" volume="-1000">
+    
+                </audio>
 </html>
