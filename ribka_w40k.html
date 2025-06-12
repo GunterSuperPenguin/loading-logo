@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+
+        <title>Loading Screen</title>
+        <style>
+            .background {
+                background-repeat:no-repeat;
+                background-attachment:fixed;
+                background-position:center;
+                background-size: cover;
+            }
+
+        </style>
+
+    </head>
+
+    <body class="background"></body>
+
+    <script language="javascript">
+
+        var images = [
+            "images/poster1.png"
+        ];
+
+        document.body.style.backgroundImage = "url('" + images[ Math.floor( Math.random() * images.length ) ] + "')";
+
+    </script>
+    <script type="text/javascript">
+
+        (function() {
+        var volume = 1;
+            $("audio").each(function(){ this.volume = volume/1; });
+        });
+    
+        </script>
+                <audio autoplay controls loop hidden>
+                    <source src="./ribka.ogg" type="audio/ogg" volume="-1000">
+    
+                </audio>
+</html>
