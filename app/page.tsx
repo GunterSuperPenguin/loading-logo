@@ -1,3 +1,5 @@
+// app/page.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -29,6 +31,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+/* ------------------------------------------------------------------ */
+/* Demo data (used only when the page is opened outside of GMod)       */
+/* ------------------------------------------------------------------ */
+
 const SERVER = {
   name: "FEDERAL BUREAU OF INVESTIGATION",
   map: "rp_downtown_v4c_v2",
@@ -36,16 +42,13 @@ const SERVER = {
   players: 42,
   maxPlayers: 64,
   address: "192.168.1.100:27015",
-  mapImage:
-    "https://placehold.co/900x500/101a17/59e6a0?text=RP+DOWNTOWN",
 };
 
 const USER = {
   nickname: "Agent_047",
   realName: "John Anderson",
   steamId: "76561198000000000",
-  avatar:
-    "https://placehold.co/128x128/10251a/4ade80?text=AGENT",
+  avatar: "https://placehold.co/128x128/10251a/4ade80?text=AGENT",
   accountCreated: "12.04.2017",
   hours: 1842,
   profilePublic: true,
@@ -59,6 +62,105 @@ const ADDONS = [
   { name: "police_vehicles_pack.gma", size: "156 MB" },
   { name: "advanced_sounds.gma", size: "84 MB" },
 ];
+
+/* ------------------------------------------------------------------ */
+/* GMod bridge (window.__GMOD is filled by the script in layout.tsx)   */
+/* ------------------------------------------------------------------ */
+
+type GmodWindow = Window & {
+  __GMOD?: {
+    details: {
+      servername?: string;
+      mapname?: string;
+      maxplayers?: number;
+      steamid?: string;
+      gamemode?: string;
+    };
+    total: number;
+    needed: number;
+    file: string;
+    status: string;
+  };
+};
+
+type GmodInfo = {
+  live: boolean;
+  servername: string;
+  mapname: string;
+  maxplayers: number;
+  steamid: string;
+  gamemode: string;
+  total: number;
+  needed: number;
+  file: string;
+  status: string;
+};
+
+const EMPTY_GMOD: GmodInfo = {
+  live: false,
+  servername: "",
+  mapname: "",
+  maxplayers: 0,
+  steamid: "",
+  gamemode: "",
+  total: 0,
+  needed: 0,
+  file: "",
+  status: "",
+};
+
+function useGmod(): GmodInfo {
+  const [info, setInfo] = useState<GmodInfo>(EMPTY_GMOD);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const sync = () => {
+      const s = (window as GmodWindow).__GMOD;
+      const d = s?.details ?? {};
+      const steamid = d.steamid || params.get("steamid") || "";
+      const mapname = d.mapname || params.get("map") || "";
+
+      setInfo({
+        live: Boolean(steamid || mapname || (s && s.total > 0)),
+        servername: d.servername || "",
+        mapname,
+        maxplayers: d.maxplayers || 0,
+        steamid,
+        gamemode: d.gamemode || "",
+        total: s?.total || 0,
+        needed: s?.needed || 0,
+        file: s?.file || "",
+        status: s?.status || "",
+      });
+    };
+
+    const t = setTimeout(sync, 0);
+    window.addEventListener("gmod-update", sync);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("gmod-update", sync);
+    };
+  }, []);
+
+  return info;
+}
+
+/* ------------------------------------------------------------------ */
+/* Steam profile (public XML via CORS proxy, no API key)               */
+/* ------------------------------------------------------------------ */
+
+type SteamProfile = {
+  nickname: string | null;
+  realName: string | null;
+  avatar: string | null;
+  created: string | null;
+  isPublic: boolean | null;
+};
+
+/* ------------------------------------------------------------------ */
+/* Geolocation types                                                   */
+/* ------------------------------------------------------------------ */
 
 type GeoData = {
   ip: string;
@@ -90,6 +192,10 @@ const EMPTY_GEO: GeoData = {
   postal: "",
 };
 
+/* ------------------------------------------------------------------ */
+/* Small UI components                                                 */
+/* ------------------------------------------------------------------ */
+
 function SectionTitle({
   icon: Icon,
   children,
@@ -108,13 +214,7 @@ function SectionTitle({
   );
 }
 
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 border-b border-white/[0.05] py-3 last:border-0">
       <span className="shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
@@ -142,9 +242,7 @@ function DataTile({
         <Icon size={13} className="shrink-0 text-emerald-500" />
         {label}
       </div>
-      <div className="break-all text-xs font-bold text-zinc-200">
-        {value}
-      </div>
+      <div className="break-all text-xs font-bold text-zinc-200">{value}</div>
     </div>
   );
 }
@@ -182,13 +280,22 @@ function MapFrame({
   );
 }
 
-export default function Home() {
-  const [geo, setGeo] = useState<GeoData>(EMPTY_GEO);
-  const [geoStatus, setGeoStatus] = useState<
-    "loading" | "success" | "error"
-  >("loading");
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
 
-  const [progress, setProgress] = useState(0);
+export default function Home() {
+  const gmod = useGmod();
+  const live = gmod.live;
+
+  const [profile, setProfile] = useState<SteamProfile | null>(null);
+
+  const [geo, setGeo] = useState<GeoData>(EMPTY_GEO);
+  const [geoStatus, setGeoStatus] = useState<"loading" | "success" | "error">(
+    "loading"
+  );
+
+  const [demoProgress, setDemoProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>([
     "INITIALIZING SECURE TERMINAL...",
     "REQUESTING NETWORK GEOLOCATION...",
@@ -234,8 +341,7 @@ export default function Home() {
           : null;
 
       const ipv6 =
-        v6Result.status === "fulfilled" &&
-        v6Result.value.ip.includes(":")
+        v6Result.status === "fulfilled" && v6Result.value.ip.includes(":")
           ? v6Result.value.ip
           : null;
 
@@ -247,13 +353,11 @@ export default function Home() {
         region: String(data.region || ""),
         country_name: String(data.country_name || ""),
         latitude:
-          Number.isFinite(Number(data.latitude)) &&
-          data.latitude !== null
+          Number.isFinite(Number(data.latitude)) && data.latitude !== null
             ? Number(data.latitude)
             : null,
         longitude:
-          Number.isFinite(Number(data.longitude)) &&
-          data.longitude !== null
+          Number.isFinite(Number(data.longitude)) && data.longitude !== null
             ? Number(data.longitude)
             : null,
         timezone: String(data.timezone || ""),
@@ -284,16 +388,57 @@ export default function Home() {
     void loadGeo();
   }
 
-  // DEMO ONLY: replace with actual GMod loading events.
+  // Initial geolocation request on mount.
   useEffect(() => {
+    const t = setTimeout(() => {
+      void loadGeo();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Steam profile by SteamID (public profile XML, no API key).
+  useEffect(() => {
+    if (!/^\d{17}$/.test(gmod.steamid)) return;
+
+    let cancelled = false;
+    const url = `https://steamcommunity.com/profiles/${gmod.steamid}?xml=1`;
+
+    fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`)
+      .then((r) => r.text())
+      .then((text) => {
+        if (cancelled) return;
+        const xml = new DOMParser().parseFromString(text, "text/xml");
+        const get = (tag: string) =>
+          xml.querySelector(tag)?.textContent?.trim() || null;
+        const privacy = get("privacyState");
+
+        setProfile({
+          nickname: get("steamID"),
+          realName: get("realname"),
+          avatar: get("avatarFull"),
+          created: get("memberSince"),
+          isPublic: privacy ? privacy === "public" : null,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gmod.steamid]);
+
+  // DEMO ONLY: runs only when the page is NOT opened from GMod.
+  useEffect(() => {
+    if (live) return;
     const interval = setInterval(() => {
-      setProgress((previous) =>
+      setDemoProgress((previous) =>
         Math.min(previous + Math.random() * 1.4 + 0.25, 100)
       );
     }, 180);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [live]);
 
   useEffect(() => {
     const messages = [
@@ -317,7 +462,17 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  /* ----- Derived values ----- */
+
+  const progress =
+    live && gmod.total > 0
+      ? Math.min(100, ((gmod.total - gmod.needed) / gmod.total) * 100)
+      : live
+        ? 0
+        : demoProgress;
+
   const complete = progress >= 100;
+
   const loaded = Math.min(
     Math.floor((progress / 100) * ADDONS.length),
     ADDONS.length
@@ -328,14 +483,56 @@ export default function Home() {
     ADDONS.length - 1
   );
 
-  const currentAddon = ADDONS[addonIndex];
+  const server = {
+    name: (live && gmod.servername) || SERVER.name,
+    map: live ? gmod.mapname || "UNKNOWN" : SERVER.map,
+    mode: live ? gmod.gamemode || "UNKNOWN" : SERVER.mode,
+    maxPlayers: (live && gmod.maxplayers) || SERVER.maxPlayers,
+  };
+
+  const user = live
+    ? {
+        nickname: profile?.nickname || "UNKNOWN",
+        realName: profile?.realName || "NOT DISCLOSED",
+        steamId: gmod.steamid || "UNKNOWN",
+        avatar: profile?.avatar || USER.avatar,
+        accountCreated: profile?.created || "UNKNOWN",
+        hours: "UNKNOWN",
+        profileLabel:
+          profile?.isPublic === null || profile === null
+            ? "UNKNOWN"
+            : profile.isPublic
+              ? "PUBLIC"
+              : "PRIVATE",
+      }
+    : {
+        nickname: USER.nickname,
+        realName: USER.realName,
+        steamId: USER.steamId,
+        avatar: USER.avatar,
+        accountCreated: USER.accountCreated,
+        hours: `${USER.hours.toLocaleString()} H`,
+        profileLabel: USER.profilePublic ? "PUBLIC" : "PRIVATE",
+      };
+
+  const mapImage = `https://placehold.co/900x500/101a17/59e6a0?text=${encodeURIComponent(
+    server.map.toUpperCase()
+  )}`;
+
+  const currentFile = live
+    ? gmod.file || gmod.status || "WAITING FOR SERVER..."
+    : ADDONS[addonIndex].name;
+
+  const filesLabel =
+    live && gmod.total > 0
+      ? `${Math.max(gmod.total - gmod.needed, 0)} / ${gmod.total}`
+      : `${loaded} / ${ADDONS.length}`;
 
   const locationLabel = [geo.city, geo.region, geo.country_name]
     .filter(Boolean)
     .join(", ");
 
-  const hasCoordinates =
-    geo.latitude !== null && geo.longitude !== null;
+  const hasCoordinates = geo.latitude !== null && geo.longitude !== null;
 
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#080b0a] font-mono text-zinc-200 selection:bg-emerald-500/30">
@@ -386,12 +583,11 @@ export default function Home() {
               CLASSIFIED // LEVEL 04 ACCESS
             </div>
             <h1 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
-              OPERATION{" "}
-              <span className="text-emerald-400">DOWNTOWN</span>
+              OPERATION <span className="text-emerald-400">DOWNTOWN</span>
             </h1>
             <p className="mt-3 max-w-xl text-xs leading-6 text-zinc-500">
-              Establishing secure connection to the federal
-              network. Preparing operational environment.
+              Establishing secure connection to the federal network. Preparing
+              operational environment.
             </p>
           </div>
 
@@ -412,14 +608,12 @@ export default function Home() {
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[0.9fr_1.3fr_0.9fr]">
           {/* LEFT: Server */}
           <section className="min-w-0 border border-white/10 bg-[#0c100e]/95 p-5">
-            <SectionTitle icon={Database}>
-              SERVER INTELLIGENCE
-            </SectionTitle>
+            <SectionTitle icon={Database}>SERVER INTELLIGENCE</SectionTitle>
 
             <div className="relative mb-5 aspect-video overflow-hidden border border-emerald-500/20 bg-[#111b16]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={SERVER.mapImage}
+                src={mapImage}
                 alt="Server map preview"
                 className="h-full w-full object-cover opacity-60"
               />
@@ -432,22 +626,22 @@ export default function Home() {
                   CURRENT MAP
                 </div>
                 <div className="mt-1 break-all text-sm font-bold text-white">
-                  {SERVER.map}
+                  {server.map}
                 </div>
               </div>
             </div>
 
-            <InfoRow label="Server" value={SERVER.name} />
-            <InfoRow label="Game mode" value={SERVER.mode} />
+            <InfoRow label="Server" value={server.name} />
+            <InfoRow label="Game mode" value={server.mode} />
             <InfoRow
               label="Players"
               value={
                 <span className="text-emerald-400">
-                  {SERVER.players} / {SERVER.maxPlayers}
+                  {live ? "—" : SERVER.players} / {server.maxPlayers}
                 </span>
               }
             />
-            <InfoRow label="Map" value={SERVER.map} />
+            <InfoRow label="Map" value={server.map} />
             <InfoRow
               label="Network"
               value={
@@ -464,7 +658,7 @@ export default function Home() {
                 SERVER ENDPOINT
               </div>
               <div className="break-all text-[10px] text-zinc-300">
-                {SERVER.address}
+                {live ? "CLASSIFIED" : SERVER.address}
               </div>
             </div>
           </section>
@@ -590,9 +784,9 @@ export default function Home() {
               <div className="mt-2 flex items-start gap-2 text-[9px] leading-5 text-amber-400/80">
                 <Eye size={12} className="mt-0.5 shrink-0" />
                 <span>
-                  Approximate location based on public IP. This is not a
-                  GPS position and may identify the ISP gateway rather
-                  than the user.
+                  Approximate location based on public IP. This is not a GPS
+                  position and may identify the ISP gateway rather than the
+                  user.
                 </span>
               </div>
             </div>
@@ -627,7 +821,7 @@ export default function Home() {
               <div className="relative h-[76px] w-[76px] shrink-0 border border-emerald-500/40 bg-black p-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={USER.avatar}
+                  src={user.avatar}
                   alt="Player avatar"
                   className="h-full w-full object-cover"
                 />
@@ -638,7 +832,7 @@ export default function Home() {
                   IDENTIFIED USER
                 </div>
                 <div className="break-words text-lg font-black text-white">
-                  {USER.nickname}
+                  {user.nickname}
                 </div>
                 <div className="mt-1 text-[10px] text-emerald-400">
                   PLAYER CLEARANCE
@@ -646,26 +840,14 @@ export default function Home() {
               </div>
             </div>
 
-            <InfoRow
-              label="Real name"
-              value={USER.realName || "NOT DISCLOSED"}
-            />
-            <InfoRow label="Steam ID" value={USER.steamId} />
-            <InfoRow label="Account created" value={USER.accountCreated} />
-            <InfoRow
-              label="GMod hours"
-              value={
-                USER.profilePublic
-                  ? `${USER.hours.toLocaleString()} H`
-                  : "PRIVATE"
-              }
-            />
+            <InfoRow label="Real name" value={user.realName} />
+            <InfoRow label="Steam ID" value={user.steamId} />
+            <InfoRow label="Account created" value={user.accountCreated} />
+            <InfoRow label="GMod hours" value={user.hours} />
             <InfoRow
               label="Profile"
               value={
-                <span className="text-emerald-400">
-                  {USER.profilePublic ? "PUBLIC" : "PRIVATE"}
-                </span>
+                <span className="text-emerald-400">{user.profileLabel}</span>
               }
             />
 
@@ -680,8 +862,9 @@ export default function Home() {
                     PLAYER IDENTIFICATION
                   </div>
                   <div className="mt-2 text-[10px] leading-5 text-zinc-500">
-                    Demo profile. Replace with actual Steam account data
-                    from your integration.
+                    {live
+                      ? "Identity verified against the federal registry."
+                      : "Demo profile. Open the page from GMod to see real data."}
                   </div>
                 </div>
               </div>
@@ -694,66 +877,89 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <SectionTitle icon={Download}>CONTENT ACQUISITION</SectionTitle>
             <span className="text-[9px] tracking-widest text-zinc-500">
-              {loaded} / {ADDONS.length} ADDONS
+              {live ? `${filesLabel} FILES` : `${loaded} / ${ADDONS.length} ADDONS`}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {ADDONS.map((addon, i) => {
-              const finished =
-                progress >= ((i + 1) / ADDONS.length) * 100;
-              const active = i === addonIndex && !complete;
+          {live ? (
+            <div className="flex min-w-0 items-center gap-3 border border-emerald-500/40 bg-emerald-500/[0.06] p-3">
+              {complete ? (
+                <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
+              ) : (
+                <Download
+                  size={16}
+                  className="shrink-0 animate-bounce text-emerald-400"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[10px] text-zinc-200">
+                  {currentFile}
+                </div>
+                <div className="mt-1 text-[9px] text-zinc-600">
+                  {gmod.status || "DOWNLOADING"}
+                </div>
+              </div>
+              <span className="shrink-0 text-[9px] text-amber-400">
+                {complete ? "READY" : "FETCHING"}
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {ADDONS.map((addon, i) => {
+                const finished = progress >= ((i + 1) / ADDONS.length) * 100;
+                const active = i === addonIndex && !complete;
 
-              return (
-                <div
-                  key={addon.name}
-                  className={`flex min-w-0 items-center gap-3 border p-3 ${
-                    active
-                      ? "border-emerald-500/40 bg-emerald-500/[0.06]"
-                      : "border-white/[0.06] bg-black/20"
-                  }`}
-                >
-                  {finished ? (
-                    <CheckCircle2
-                      size={16}
-                      className="shrink-0 text-emerald-400"
-                    />
-                  ) : active ? (
-                    <Download
-                      size={16}
-                      className="shrink-0 animate-bounce text-emerald-400"
-                    />
-                  ) : (
-                    <FileLock2
-                      size={16}
-                      className="shrink-0 text-zinc-600"
-                    />
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[10px] text-zinc-200">
-                      {addon.name}
-                    </div>
-                    <div className="mt-1 text-[9px] text-zinc-600">
-                      {addon.size}
-                    </div>
-                  </div>
-
-                  <span
-                    className={`shrink-0 text-[9px] ${
-                      finished
-                        ? "text-emerald-400"
-                        : active
-                          ? "text-amber-400"
-                          : "text-zinc-600"
+                return (
+                  <div
+                    key={addon.name}
+                    className={`flex min-w-0 items-center gap-3 border p-3 ${
+                      active
+                        ? "border-emerald-500/40 bg-emerald-500/[0.06]"
+                        : "border-white/[0.06] bg-black/20"
                     }`}
                   >
-                    {finished ? "READY" : active ? "FETCHING" : "QUEUED"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                    {finished ? (
+                      <CheckCircle2
+                        size={16}
+                        className="shrink-0 text-emerald-400"
+                      />
+                    ) : active ? (
+                      <Download
+                        size={16}
+                        className="shrink-0 animate-bounce text-emerald-400"
+                      />
+                    ) : (
+                      <FileLock2
+                        size={16}
+                        className="shrink-0 text-zinc-600"
+                      />
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[10px] text-zinc-200">
+                        {addon.name}
+                      </div>
+                      <div className="mt-1 text-[9px] text-zinc-600">
+                        {addon.size}
+                      </div>
+                    </div>
+
+                    <span
+                      className={`shrink-0 text-[9px] ${
+                        finished
+                          ? "text-emerald-400"
+                          : active
+                            ? "text-amber-400"
+                            : "text-zinc-600"
+                      }`}
+                    >
+                      {finished ? "READY" : active ? "FETCHING" : "QUEUED"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
 
@@ -777,7 +983,7 @@ export default function Home() {
                   {complete ? "DEPLOYMENT READY" : "LOADING GAME CONTENT"}
                 </div>
                 <div className="mt-1 truncate text-[9px] text-zinc-500">
-                  {complete ? "Demo assets processed." : currentAddon.name}
+                  {complete ? "All assets processed." : currentFile}
                 </div>
               </div>
             </div>
@@ -808,7 +1014,7 @@ export default function Home() {
             </span>
             <span className="flex items-center gap-2">
               <Clock3 size={11} />
-              {loaded} / {ADDONS.length} FILES
+              {filesLabel} FILES
             </span>
             <span className="hidden items-center gap-2 sm:flex">
               <Radio size={11} />
