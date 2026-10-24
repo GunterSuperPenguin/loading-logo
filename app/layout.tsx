@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "F.B.I. Secure Access Terminal",
+  title: "GMod loading screen",
   description: "GMod loading screen",
 };
 

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F.B.I. Secure Access Terminal</title>
+
+<!-- GMod bridge: must run before anything else -->
+<script>
+(function () {
+  var s = window.__GMOD = window.__GMOD || { details: {}, total: 0, needed: 0, file: "", status: "" };
+  function emit() {
+    try {
+      var ev = document.createEvent("Event");
+      ev.initEvent("gmod-update", true, true);
+      window.dispatchEvent(ev);
+    } catch (e) {}
+  }
+  window.GameDetails = function (servername, serverurl, mapname, maxplayers, steamid, gamemode) {
+    s.details = { servername: servername, serverurl: serverurl, mapname: mapname,
+      maxplayers: Number(maxplayers) || 0, steamid: steamid, gamemode: gamemode };
+    emit();
+  };
+  window.SetFilesTotal = function (t) { s.total = Number(t) || 0; emit(); };
+  window.SetFilesNeeded = function (n) { s.needed = Number(n) || 0; emit(); };
+  window.DownloadingFile = function (f) { s.file = f; emit(); };
+  window.SetStatusChanged = function (st) { s.status = st; emit(); };
+})();
+</script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #080b0a; }
+body {
+  font-family: "Courier New", Consolas, monospace;
+  color: #e4e4e7; min-height: 100vh; overflow-x: hidden;
+  background-image:
+    radial-gradient(ellipse at top, rgba(16,185,129,0.12), transparent 60%),
+    linear-gradient(rgba(74,222,128,0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,222,128,0.055) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+.green { color: #34d399; }
+.amber { color: rgba(251,191,36,0.85); }
+.muted { color: #71717a; }
+.label { font-size: 9px; letter-spacing: 0.15em; color: #71717a; text-transform: uppercase; }
+
+header {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  padding: 16px 40px; border-bottom: 1px solid rgba(16,185,129,0.2); background: rgba(0,0,0,0.4);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.logo {
+  width: 40px; height: 40px; border: 1px solid rgba(16,185,129,0.4);
+  background: rgba(16,185,129,0.08); color: #34d399;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.brand b { font-size: 12px; letter-spacing: 0.24em; color: #fff; display: block; }
+.brand span { font-size: 9px; letter-spacing: 0.18em; color: rgba(16,185,129,0.7); display: block; margin-top: 4px; }
+.online { font-size: 9px; letter-spacing: 0.15em; color: #34d399; }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #34d399; margin-right: 8px; animation: pulse 1.5s infinite; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+
+main { max-width: 1600px; margin: 0 auto; padding: 36px 32px 260px; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; }
+.top .cls { font-size: 10px; letter-spacing: 0.3em; color: #10b981; margin-bottom: 12px; }
+h1 { font-size: 48px; font-weight: 900; color: #fff; letter-spacing: -0.02em; }
+h1 span { color: #34d399; }
+.top p { font-size: 12px; line-height: 24px; color: #71717a; max-width: 560px; margin-top: 12px; }
+.status { border: 1px solid rgba(16,185,129,0.2); background: rgba(16,185,129,0.04); padding: 12px 16px; margin-top: 12px; }
+.status b { display: block; font-size: 12px; color: #34d399; margin-top: 4px; }
+
+.grid { display: grid; grid-template-columns: 0.9fr 1.3fr 0.9fr; gap: 20px; }
+.panel { min-width: 0; border: 1px solid rgba(255,255,255,0.1); background: rgba(12,16,14,0.95); padding: 20px; }
+.panel.center { border-color: rgba(16,185,129,0.25); background: rgba(10,14,12,0.95); }
+.title {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid rgba(16,185,129,0.2); padding-bottom: 12px; margin-bottom: 16px;
+  font-size: 10px; font-weight: bold; letter-spacing: 0.2em; color: #34d399;
+}
+.title i { width: 6px; height: 6px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+
+.mapbox { position: relative; width: 100%; padding-top: 56.25%; border: 1px solid rgba(16,185,129,0.2); background: #111b16; margin-bottom: 20px; overflow: hidden; }
+.mapbox img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.6; }
+.mapbox .shade { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, #080b0a, transparent); }
+.mapbox .tag { position: absolute; top: 12px; left: 12px; border: 1px solid rgba(16,185,129,0.3); background: rgba(0,0,0,0.7); padding: 4px 8px; font-size: 9px; color: #34d399; }
+.mapbox .cap { position: absolute; left: 12px; right: 12px; bottom: 12px; }
+.mapbox .cap small { font-size: 9px; letter-spacing: 0.15em; color: #34d399; }
+.mapbox .cap b { display: block; margin-top: 4px; font-size: 14px; color: #fff; word-break: break-all; }
+
+.row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.row:last-child { border-bottom: 0; }
+.row .k { font-size: 10px; letter-spacing: 0.1em; color: #71717a; text-transform: uppercase; white-space: nowrap; }
+.row .v { font-size: 12px; text-align: right; word-break: break-all; min-width: 0; }
+
+.box { border: 1px solid rgba(255,255,255,0.07); background: rgba(0,0,0,0.3); padding: 12px; margin-top: 20px; }
+.box .v { font-size: 10px; color: #d4d4d8; word-break: break-all; margin-top: 8px; }
+
+.geo { display: flex; align-items: center; border: 1px solid rgba(16,185,129,0.2); background: rgba(16,185,129,0.04); padding: 12px; margin-bottom: 16px; }
+.geo .ic { width: 44px; height: 44px; border: 1px solid rgba(16,185,129,0.3); background: rgba(16,185,129,0.08); margin-right: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.geo .tx { flex: 1; min-width: 0; }
+.geo b { display: block; margin-top: 4px; font-size: 12px; color: #34d399; }
+.geo button { border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #a1a1aa; padding: 8px 10px; cursor: pointer; font-family: inherit; }
+.geo button:hover { border-color: rgba(16,185,129,0.4); color: #34d399; }
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile { min-width: 0; border: 1px solid rgba(255,255,255,0.07); background: rgba(0,0,0,0.3); padding: 12px; }
+.tile .val { font-size: 12px; font-weight: bold; margin-top: 12px; word-break: break-all; }
+
+.where b { display: block; font-size: 12px; color: #fff; }
+.where small { display: block; font-size: 9px; color: #71717a; margin-top: 4px; }
+.osm { position: relative; min-height: 270px; border: 1px solid rgba(16,185,129,0.2); background: #0b1510; margin-top: 12px; }
+.osm iframe { display: block; width: 100%; height: 270px; border: 0; }
+.osm .ph { height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; font-size: 10px; letter-spacing: 0.15em; color: #a1a1aa; }
+.note { font-size: 9px; line-height: 18px; margin-top: 8px; }
+.log div { font-size: 9px; line-height: 16px; color: #a1a1aa; margin-top: 8px; }
+.log div:before { content: "> "; color: #10b981; }
+
+.avatar { display: flex; align-items: center; margin-bottom: 20px; }
+.avatar .pic { width: 76px; height: 76px; border: 1px solid rgba(16,185,129,0.4); background: #000; padding: 4px; margin-right: 16px; flex-shrink: 0; }
+.avatar .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar b { display: block; font-size: 18px; font-weight: 900; color: #fff; word-break: break-word; margin-top: 8px; }
+.avatar small { font-size: 10px; color: #34d399; display: block; margin-top: 4px; }
+
+.files { margin-top: 20px; }
+.files .list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.file { display: flex; align-items: center; min-width: 0; border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2); padding: 12px; }
+.file.active { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.06); }
+.file .ic { width: 16px; margin-right: 12px; color: #52525b; flex-shrink: 0; }
+.file.done .ic { color: #34d399; }
+.file.active .ic { color: #34d399; }
+.file .nm { flex: 1; min-width: 0; }
+.file .nm b { display: block; font-weight: normal; font-size: 10px; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file .nm small { font-size: 9px; color: #52525b; }
+.file .st { font-size: 9px; color: #52525b; margin-left: 8px; flex-shrink: 0; }
+.file.done .st { color: #34d399; }
+.file.active .st { color: #fbbf24; }
+
+footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; border-top: 1px solid rgba(16,185,129,0.3); background: rgba(8,11,10,0.97); box-shadow: 0 -15px 60px rgba(0,0,0,0.6); }
+.fin { max-width: 1600px; margin: 0 auto; padding: 16px 32px; }
+.frow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.frow .l { min-width: 0; }
+.frow .l b { display: block; font-size: 10px; letter-spacing: 0.16em; color: #fff; }
+.frow .l small { display: block; font-size: 9px; color: #71717a; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pct { font-size: 28px; font-weight: 900; color: #34d399; text-align: right; }
+.pct small { display: block; font-size: 9px; letter-spacing: 0.15em; color: #52525b; font-weight: normal; }
+.bar { height: 8px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.bar div { height: 100%; width: 0; background: linear-gradient(to right, #047857, #6ee7b7, rgba(255,255,255,0.7)); transition: width 0.2s; }
+.fmeta { display: flex; justify-content: space-between; margin-top: 12px; font-size: 9px; letter-spacing: 0.1em; color: #52525b; }
+
+@media (max-width: 1000px) {
+  .grid { grid-template-columns: 1fr; }
+  .files .list { grid-template-columns: 1fr; }
+  h1 { font-size: 32px; }
+  header { padding: 16px 20px; }
+  main { padding: 24px 16px 260px; }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">&#9919;</div>
+    <div><b>F.B.I.</b><span>SECURE ACCESS TERMINAL</span></div>
+  </div>
+  <div class="online"><span class="dot"></span>SYSTEM ONLINE &nbsp;|&nbsp; <span class="muted">BUILD 2.6.04</span></div>
+</header>
+
+<main>
+  <div class="top">
+    <div>
+      <div class="cls">&#128274; CLASSIFIED // LEVEL 04 ACCESS</div>
+      <h1>OPERATION <span>DOWNTOWN</span></h1>
+      <p>Establishing secure connection to the federal network. Preparing operational environment.</p>
+    </div>
+    <div class="status">
+      <span class="label">CONNECTION STATUS</span>
+      <b id="connStatus">LOADING RESOURCES</b>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- SERVER -->
+    <section class="panel">
+      <div class="title"><span>SERVER INTELLIGENCE</span><i></i></div>
+      <div class="mapbox">
+        <img id="mapImg" alt="Map preview" src="">
+        <div class="shade"></div>
+        <div class="tag">MAP PREVIEW</div>
+        <div class="cap"><small>CURRENT MAP</small><b id="mapCap"></b></div>
+      </div>
+      <div class="row"><span class="k">Server</span><span class="v" id="srvName"></span></div>
+      <div class="row"><span class="k">Game mode</span><span class="v" id="srvMode"></span></div>
+      <div class="row"><span class="k">Players</span><span class="v green" id="srvPlayers"></span></div>
+      <div class="row"><span class="k">Map</span><span class="v" id="srvMap"></span></div>
+      <div class="row"><span class="k">Network</span><span class="v green">CONNECTED</span></div>
+      <div class="box"><div class="label">SERVER ENDPOINT</div><div class="v" id="srvAddr"></div></div>
+    </section>
+
+    <!-- TRACKING -->
+    <section class="panel center">
+      <div class="title"><span>SUBJECT TRACKING</span><i></i></div>
+      <div class="geo">
+        <div class="ic">&#9737;</div>
+        <div class="tx"><span class="label">GEOLOCATION SYSTEM</span><b id="geoState">ESTABLISHING TRACE...</b></div>
+        <button id="geoBtn" title="Refresh">&#8635;</button>
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><span class="label">PUBLIC IPv4</span><div class="val" id="tIPv4">NOT DETECTED</div></div>
+        <div class="tile"><span class="label">PUBLIC IPv6</span><div class="val" id="tIPv6">NOT DETECTED</div></div>
+        <div class="tile"><span class="label">MAC ADDRESS</span><div class="val">NOT ACCESSIBLE</div></div>
+        <div class="tile"><span class="label">ISP / ORGANIZATION</span><div class="val" id="tOrg">UNKNOWN</div></div>
+        <div class="tile"><span class="label">ASN</span><div class="val" id="tAsn">UNKNOWN</div></div>
+        <div class="tile"><span class="label">TIMEZONE</span><div class="val" id="tTz">UNKNOWN</div></div>
+      </div>
+
+      <div style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:0.15em">
+          <span class="green">SUBJECT GEOLOCATION</span><span class="muted" style="font-size:9px">IP-BASED</span>
+        </div>
+        <div class="box where" style="margin-top:12px">
+          <b id="locText">SEARCHING LOCATION...</b>
+          <small id="locCoords">COORDINATES UNAVAILABLE</small>
+        </div>
+        <div class="osm" id="osm"><div class="ph">ACQUIRING COORDINATES</div></div>
+        <div class="note amber">Approximate location based on public IP. This is not a GPS position and may identify the ISP gateway rather than the user.</div>
+      </div>
+
+      <div class="box log"><div class="label" style="margin-bottom:4px">NETWORK EVENT LOG</div><div id="logBox"></div></div>
+    </section>
+
+    <!-- DOSSIER -->
+    <section class="panel">
+      <div class="title"><span>PERSONNEL DOSSIER</span><i></i></div>
+      <div class="avatar">
+        <div class="pic"><img id="avatar" alt="Avatar" src=""></div>
+        <div style="min-width:0">
+          <span class="label">IDENTIFIED USER</span>
+          <b id="uNick"></b>
+          <small>PLAYER CLEARANCE</small>
+        </div>
+      </div>
+      <div class="row"><span class="k">Real name</span><span class="v" id="uReal"></span></div>
+      <div class="row"><span class="k">Steam ID</span><span class="v" id="uSteam"></span></div>
+      <div class="row"><span class="k">Account created</span><span class="v" id="uCreated"></span></div>
+      <div class="row"><span class="k">GMod hours</span><span class="v" id="uHours"></span></div>
+      <div class="row"><span class="k">Profile</span><span class="v green" id="uProfile"></span></div>
+      <div class="box" style="border-color:rgba(16,185,129,0.15);background:rgba(16,185,129,0.035)">
+        <div class="label" style="color:#d4d4d8;font-weight:bold">PLAYER IDENTIFICATION</div>
+        <div class="v muted" style="line-height:20px" id="uNote"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel files">
+    <div class="title"><span>CONTENT ACQUISITION</span><span class="muted" id="filesCount" style="font-weight:normal;letter-spacing:0.1em"></span></div>
+    <div class="list" id="fileList"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="fin">
+    <div class="frow">
+      <div class="l"><b id="fTitle">LOADING GAME CONTENT</b><small id="fFile"></small></div>
+      <div class="pct"><span id="fPct">0%</span><small>PROGRESS</small></div>
+    </div>
+    <div class="bar"><div id="fBar"></div></div>
+    <div class="fmeta"><span id="fState">ESTABLISHING CONNECTION</span><span id="fFiles"></span><span>FBI NETWORK // ENCRYPTED</span></div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var DEMO_SERVER = { name: "FEDERAL BUREAU OF INVESTIGATION", map: "rp_downtown_v4c_v2", mode: "Serious Roleplay", players: 42, max: 64, addr: "192.168.1.100:27015" };
+  var DEMO_USER = { nick: "Agent_047", real: "John Anderson", steam: "76561198000000000", created: "12.04.2017", hours: "1,842 H", profile: "PUBLIC",
+    avatar: "https://placehold.co/128x128/10251a/4ade80?text=AGENT" };
+  var ADDONS = [
+    ["fbi_shared_assets.gma", "248 MB"], ["rp_downtown_content.gma", "184 MB"], ["tactical_gear_pack.gma", "96 MB"],
+    ["realistic_weapons.gma", "312 MB"], ["police_vehicles_pack.gma", "156 MB"], ["advanced_sounds.gma", "84 MB"]
+  ];
+
+  var params = new URLSearchParams(location.search);
+  var demoProgress = 0;
+  var profile = null, profileFor = "";
+  var logs = ["INITIALIZING SECURE TERMINAL...", "REQUESTING NETWORK GEOLOCATION...", "WAITING FOR API RESPONSE..."];
+
+  function $(id) { return document.getElementById(id); }
+  function text(id, t) { var e = $(id); if (e && e.textContent !== t) e.textContent = t; }
+  function pushLog(t) { logs.push(t); if (logs.length > 4) logs = logs.slice(-4); renderLogs(); }
+  function renderLogs() {
+    var box = $("logBox"); box.innerHTML = "";
+    for (var i = 0; i < logs.length; i++) { var d = document.createElement("div"); d.textContent = logs[i]; box.appendChild(d); }
+  }
+
+  /* ---------- state from GMod ---------- */
+  function state() {
+    var g = window.__GMOD || { details: {}, total: 0, needed: 0, file: "", status: "" };
+    var d = g.details || {};
+    var steam = d.steamid || params.get("steamid") || "";
+    var map = d.mapname || params.get("map") || "";
+    return {
+      live: !!(steam || map || g.total > 0),
+      name: d.servername || "", map: map, mode: d.gamemode || "", max: d.maxplayers || 0,
+      steam: steam, total: g.total || 0, needed: g.needed || 0, file: g.file || "", status: g.status || ""
+    };
+  }
+
+  /* ---------- render ---------- */
+  var fileRowsBuilt = false;
+  function render() {
+    var s = state();
+    var progress;
+    if (s.live) progress = s.total > 0 ? Math.min(100, ((s.total - s.needed) / s.total) * 100) : 0;
+    else progress = demoProgress;
+    var complete = progress >= 100;
+
+    var map = s.live ? (s.map || "UNKNOWN") : DEMO_SERVER.map;
+    text("mapCap", map); text("srvMap", map);
+    var imgUrl = "https://placehold.co/900x500/101a17/59e6a0?text=" + encodeURIComponent(map.toUpperCase());
+    if ($("mapImg").getAttribute("data-u") !== imgUrl) { $("mapImg").setAttribute("data-u", imgUrl); $("mapImg").src = imgUrl; }
+
+    text("srvName", (s.live && s.name) || DEMO_SERVER.name);
+    text("srvMode", s.live ? (s.mode || "UNKNOWN") : DEMO_SERVER.mode);
+    text("srvPlayers", (s.live ? "\u2014" : DEMO_SERVER.players) + " / " + ((s.live && s.max) || DEMO_SERVER.max));
+    text("srvAddr", s.live ? "CLASSIFIED" : DEMO_SERVER.addr);
+
+    /* user */
+    if (s.live) {
+      text("uNick", (profile && profile.nick) || "UNKNOWN");
+      text("uReal", (profile && profile.real) || "NOT DISCLOSED");
+      text("uSteam", s.steam || "UNKNOWN");
+      text("uCreated", (profile && profile.created) || "UNKNOWN");
+      text("uHours", "UNKNOWN");
+      text("uProfile", profile && profile.pub !== null ? (profile.pub ? "PUBLIC" : "PRIVATE") : "UNKNOWN");
+      text("uNote", "Identity verified against the federal registry.");
+      var av = (profile && profile.avatar) || DEMO_USER.avatar;
+      if ($("avatar").getAttribute("data-u") !== av) { $("avatar").setAttribute("data-u", av); $("avatar").src = av; }
+    } else {
+      text("uNick", DEMO_USER.nick); text("uReal", DEMO_USER.real); text("uSteam", DEMO_USER.steam);
+      text("uCreated", DEMO_USER.created); text("uHours", DEMO_USER.hours); text("uProfile", DEMO_USER.profile);
+      text("uNote", "Demo profile. Open the page from GMod to see real data.");
+      if ($("avatar").getAttribute("data-u") !== DEMO_USER.avatar) { $("avatar").setAttribute("data-u", DEMO_USER.avatar); $("avatar").src = DEMO_USER.avatar; }
+    }
+    if (s.live && /^\d{17}$/.test(s.steam) && profileFor !== s.steam) { profileFor = s.steam; loadProfile(s.steam); }
+
+    /* files */
+    var list = $("fileList"), current, filesLabel;
+    var addonIndex = Math.min(Math.floor((progress / 100) * ADDONS.length), ADDONS.length - 1);
+    if (s.live) {
+      current = s.file || s.status || "WAITING FOR SERVER...";
+      filesLabel = s.total > 0 ? Math.max(s.total - s.needed, 0) + " / " + s.total : "0 / 0";
+      list.style.display = "block";
+      list.innerHTML = "";
+      var row = document.createElement("div");
+      row.className = "file active";
+      row.innerHTML = '<span class="ic">&#9660;</span><span class="nm"><b></b><small></small></span><span class="st"></span>';
+      row.getElementsByTagName("b")[0].textContent = current;
+      row.getElementsByTagName("small")[0].textContent = s.status || "DOWNLOADING";
+      row.getElementsByClassName("st")[0].textContent = complete ? "READY" : "FETCHING";
+      list.appendChild(row);
+      fileRowsBuilt = false;
+      text("filesCount", filesLabel + " FILES");
+    } else {
+      current = ADDONS[addonIndex][0];
+      var loaded = Math.min(Math.floor((progress / 100) * ADDONS.length), ADDONS.length);
+      filesLabel = loaded + " / " + ADDONS.length;
+      list.style.display = "";
+      list.innerHTML = "";
+      for (var i = 0; i < ADDONS.length; i++) {
+        var fin = progress >= ((i + 1) / ADDONS.length) * 100;
+        var act = i === addonIndex && !complete;
+        var r = document.createElement("div");
+        r.className = "file" + (fin ? " done" : act ? " active" : "");
+        r.innerHTML = '<span class="ic">' + (fin ? "&#10003;" : act ? "&#9660;" : "&#9632;") + '</span><span class="nm"><b></b><small></small></span><span class="st"></span>';
+        r.getElementsByTagName("b")[0].textContent = ADDONS[i][0];
+        r.getElementsByTagName("small")[0].textContent = ADDONS[i][1];
+        r.getElementsByClassName("st")[0].textContent = fin ? "READY" : act ? "FETCHING" : "QUEUED";
+        list.appendChild(r);
+      }
+      text("filesCount", filesLabel + " ADDONS");
+    }
+
+    /* footer */
+    text("connStatus", complete ? "READY FOR DEPLOYMENT" : "LOADING RESOURCES");
+    text("fTitle", complete ? "DEPLOYMENT READY" : "LOADING GAME CONTENT");
+    text("fFile", complete ? "All assets processed." : current);
+    text("fPct", Math.floor(progress) + "%");
+    $("fBar").style.width = progress + "%";
+    text("fState", complete ? "ALL SYSTEMS NOMINAL" : "ESTABLISHING CONNECTION");
+    text("fFiles", filesLabel + " FILES");
+  }
+
+  /* ---------- Steam profile (public XML, no key) ---------- */
+  function loadProfile(id) {
+    var url = "https://steamcommunity.com/profiles/" + id + "?xml=1";
+    fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url))
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        var xml = new DOMParser().parseFromString(t, "text/xml");
+        function get(tag) { var n = xml.getElementsByTagName(tag)[0]; return n && n.textContent ? n.textContent.trim() : null; }
+        var priv = get("privacyState");
+        profile = { nick: get("steamID"), real: get("realname"), avatar: get("avatarFull"), created: get("memberSince"),
+          pub: priv ? priv === "public" : null };
+        render();
+      })
+      .catch(function () {});
+  }
+
+  /* ---------- Geolocation ---------- */
+  function loadGeo() {
+    $("geoState").textContent = "ESTABLISHING TRACE...";
+    fetch("https://ipapi.co/json/", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("api"); return r.json(); })
+      .then(function (d) {
+        if (d.error || !d.ip) throw new Error("bad");
+        var p4 = fetch("https://api.ipify.org?format=json").then(function (r) { return r.json(); }).catch(function () { return null; });
+        var p6 = fetch("https://api6.ipify.org?format=json").then(function (r) { return r.json(); }).catch(function () { return null; });
+        return Promise.all([p4, p6]).then(function (x) { return { d: d, v4: x[0], v6: x[1] }; });
+      })
+      .then(function (x) {
+        var d = x.d;
+        var v4 = x.v4 && /^\d{1,3}(\.\d{1,3}){3}$/.test(x.v4.ip) ? x.v4.ip : null;
+        var v6 = x.v6 && String(x.v6.ip).indexOf(":") !== -1 ? x.v6.ip : null;
+        text("tIPv4", v4 || "NOT DETECTED");
+        text("tIPv6", v6 || "NOT DETECTED");
+        text("tOrg", d.org || "UNKNOWN");
+        text("tAsn", d.asn || "UNKNOWN");
+        text("tTz", d.timezone || "UNKNOWN");
+        var loc = [d.city, d.region, d.country_name].filter(Boolean).join(", ");
+        text("locText", loc || "LOCATION UNKNOWN");
+        var lat = Number(d.latitude), lon = Number(d.longitude);
+        var osm = $("osm");
+        if (d.latitude != null && d.longitude != null && isFinite(lat) && isFinite(lon)) {
+          text("locCoords", lat.toFixed(5) + ", " + lon.toFixed(5));
+          var dl = 0.06;
+          var bbox = [lon - dl, lat - dl, lon + dl, lat + dl].join(",");
+          osm.innerHTML = '<iframe title="map" referrerpolicy="no-referrer" src="https://www.openstreetmap.org/export/embed.html?bbox=' +
+            bbox + "&layer=mapnik&marker=" + lat + "," + lon + '"></iframe>';
+        } else {
+          text("locCoords", "COORDINATES UNAVAILABLE");
+          osm.innerHTML = '<div class="ph">MAP DATA UNAVAILABLE</div>';
+        }
+        text("geoState", "NETWORK IDENTIFIED");
+        pushLog("GEOLOCATION DATA RECEIVED");
+        pushLog("NETWORK IDENTIFICATION COMPLETE");
+      })
+      .catch(function () {
+        text("geoState", "TRACE UNAVAILABLE");
+        text("locText", "LOCATION UNKNOWN");
+        $("osm").innerHTML = '<div class="ph">MAP DATA UNAVAILABLE</div>';
+        pushLog("GEOLOCATION REQUEST FAILED");
+        pushLog("CHECK NETWORK OR API AVAILABILITY");
+      });
+  }
+
+  /* ---------- timers ---------- */
+  var messages = ["VERIFYING CLIENT RESOURCES...", "CHECKING SERVER CONFIGURATION...", "MOUNTING CLIENT ASSETS...",
+    "VERIFYING ADDON INTEGRITY...", "SYNCING PLAYER PROFILE...", "PREPARING GAME SESSION..."];
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  setInterval(function () {
+    var n = new Date();
+    pushLog("[" + pad(n.getHours()) + ":" + pad(n.getMinutes()) + ":" + pad(n.getSeconds()) + "] " + messages[Math.floor(Math.random() * messages.length)]);
+  }, 3000);
+
+  setInterval(function () {
+    if (!state().live) { demoProgress = Math.min(demoProgress + Math.random() * 1.4 + 0.25, 100); render(); }
+  }, 180);
+
+  window.addEventListener("gmod-update", render);
+  $("geoBtn").addEventListener("click", loadGeo);
+
+  renderLogs();
+  render();
+  loadGeo();
+})();
+</script>
+</body>
+</html>
