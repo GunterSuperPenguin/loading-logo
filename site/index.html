@@ -398,20 +398,60 @@ footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; border-top:
     text("fFiles", filesLabel + " FILES");
   }
 
-  /* ---------- Steam profile (public XML, no key) ---------- */
+  /* ---------- Steam profile (public XML, no key, proxy chain) ---------- */
+  var PROXIES = [
+    function (u) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(u); },
+    function (u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); },
+    function (u) { return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(u); },
+    function (u) { return "https://thingproxy.freeboard.io/fetch/" + u; }
+  ];
+
+  function fetchText(url, ms) {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var t = setTimeout(function () { if (!done) { done = true; reject(new Error("timeout")); } }, ms);
+      fetch(url).then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.text();
+      }).then(function (txt) {
+        if (!done) { done = true; clearTimeout(t); resolve(txt); }
+      }).catch(function (e) {
+        if (!done) { done = true; clearTimeout(t); reject(e); }
+      });
+    });
+  }
+
+  function parseProfile(t) {
+    if (!t || t.indexOf("<profile>") === -1) return null;
+    var xml = new DOMParser().parseFromString(t, "text/xml");
+    function get(tag) { var n = xml.getElementsByTagName(tag)[0]; return n && n.textContent ? n.textContent.trim() : null; }
+    var priv = get("privacyState");
+    var nick = get("steamID");
+    if (!nick) return null;
+    return { nick: nick, real: get("realname"), avatar: get("avatarFull"), created: get("memberSince"),
+      pub: priv ? priv === "public" : null };
+  }
+
   function loadProfile(id) {
-    var url = "https://steamcommunity.com/profiles/" + id + "?xml=1";
-    fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url))
-      .then(function (r) { return r.text(); })
-      .then(function (t) {
-        var xml = new DOMParser().parseFromString(t, "text/xml");
-        function get(tag) { var n = xml.getElementsByTagName(tag)[0]; return n && n.textContent ? n.textContent.trim() : null; }
-        var priv = get("privacyState");
-        profile = { nick: get("steamID"), real: get("realname"), avatar: get("avatarFull"), created: get("memberSince"),
-          pub: priv ? priv === "public" : null };
+    var target = "https://steamcommunity.com/profiles/" + id + "?xml=1";
+    var i = 0;
+    function next() {
+      if (i >= PROXIES.length) {
+        pushLog("PROFILE LOOKUP FAILED");
+        // retry once after 15 s
+        setTimeout(function () { if (!profile) { profileFor = ""; render(); } }, 15000);
+        return;
+      }
+      var url = PROXIES[i++](target);
+      fetchText(url, 6000).then(function (t) {
+        var p = parseProfile(t);
+        if (!p) throw new Error("bad xml");
+        profile = p;
+        pushLog("PERSONNEL RECORD LOCATED");
         render();
-      })
-      .catch(function () {});
+      }).catch(next);
+    }
+    next();
   }
 
   /* ---------- Map from plain image tiles (no WebGL) ---------- */
