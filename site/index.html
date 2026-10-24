@@ -111,6 +111,12 @@ h1 span { color: #34d399; }
 .where small { display: block; font-size: 9px; color: #71717a; margin-top: 4px; }
 .osm { position: relative; min-height: 270px; border: 1px solid rgba(16,185,129,0.2); background: #0b1510; margin-top: 12px; }
 .osm iframe { display: block; width: 100%; height: 270px; border: 0; }
+.tiles-wrap { position: relative; width: 100%; height: 270px; overflow: hidden; background: #0b1510; }
+.tiles-grid { position: absolute; width: 1280px; height: 768px; filter: invert(1) hue-rotate(180deg) brightness(0.85) saturate(0.5); }
+.tiles-grid img { position: absolute; width: 256px; height: 256px; display: block; }
+.tiles-pin { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  border: 2px solid #34d399; background: rgba(52,211,153,0.25); box-shadow: 0 0 14px #34d399; animation: pulse 1.5s infinite; }
+.tiles-cr { position: absolute; right: 0; bottom: 0; padding: 2px 6px; font-size: 9px; color: #a1a1aa; background: rgba(0,0,0,0.6); }
 .osm .ph { height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; font-size: 10px; letter-spacing: 0.15em; color: #a1a1aa; }
 .note { font-size: 9px; line-height: 18px; margin-top: 8px; }
 .log div { font-size: 9px; line-height: 16px; color: #a1a1aa; margin-top: 8px; }
@@ -408,6 +414,52 @@ footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; border-top:
       .catch(function () {});
   }
 
+  /* ---------- Map from plain image tiles (no WebGL) ---------- */
+  function renderTileMap(el, lat, lon, z) {
+    var n = Math.pow(2, z);
+    var latRad = lat * Math.PI / 180;
+    var xf = (lon + 180) / 360 * n;
+    var yf = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+    var x0 = Math.floor(xf) - 2, y0 = Math.floor(yf) - 1;
+    var offX = (xf - x0) * 256, offY = (yf - y0) * 256;
+
+    el.innerHTML = "";
+    var wrap = document.createElement("div");
+    wrap.className = "tiles-wrap";
+    var grid = document.createElement("div");
+    grid.className = "tiles-grid";
+    grid.style.left = "50%";
+    grid.style.top = "50%";
+    grid.style.marginLeft = (-offX) + "px";
+    grid.style.marginTop = (-offY) + "px";
+
+    for (var dy = 0; dy < 3; dy++) {
+      for (var dx = 0; dx < 5; dx++) {
+        var tx = ((x0 + dx) % n + n) % n;
+        var ty = y0 + dy;
+        if (ty < 0 || ty >= n) continue;
+        var img = document.createElement("img");
+        img.src = "https://tile.openstreetmap.org/" + z + "/" + tx + "/" + ty + ".png";
+        img.alt = "";
+        img.style.left = (dx * 256) + "px";
+        img.style.top = (dy * 256) + "px";
+        grid.appendChild(img);
+      }
+    }
+    wrap.appendChild(grid);
+
+    var pin = document.createElement("div");
+    pin.className = "tiles-pin";
+    wrap.appendChild(pin);
+
+    var cr = document.createElement("div");
+    cr.className = "tiles-cr";
+    cr.textContent = "\u00A9 OpenStreetMap contributors";
+    wrap.appendChild(cr);
+
+    el.appendChild(wrap);
+  }
+
   /* ---------- Geolocation ---------- */
   function loadGeo() {
     $("geoState").textContent = "ESTABLISHING TRACE...";
@@ -434,10 +486,7 @@ footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; border-top:
         var osm = $("osm");
         if (d.latitude != null && d.longitude != null && isFinite(lat) && isFinite(lon)) {
           text("locCoords", lat.toFixed(5) + ", " + lon.toFixed(5));
-          var dl = 0.06;
-          var bbox = [lon - dl, lat - dl, lon + dl, lat + dl].join(",");
-          osm.innerHTML = '<iframe title="map" referrerpolicy="no-referrer" src="https://www.openstreetmap.org/export/embed.html?bbox=' +
-            bbox + "&layer=mapnik&marker=" + lat + "," + lon + '"></iframe>';
+          renderTileMap(osm, lat, lon, 11);
         } else {
           text("locCoords", "COORDINATES UNAVAILABLE");
           osm.innerHTML = '<div class="ph">MAP DATA UNAVAILABLE</div>';
