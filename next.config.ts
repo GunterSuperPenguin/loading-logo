@@ -1,11 +1,13 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === "production";
+const repo = "loading-logo";
+
 const nextConfig: NextConfig = {
   output: "export",
-  trailingSlash: true,
+  basePath: isProd ? `/${repo}` : "",
   images: { unoptimized: true },
-  // basePath нужен только если сайт будет лежать в подпапке,
-  // например на GitHub Pages: basePath: "/loading-logo",
+  trailingSlash: true,
 };
 
 export default nextConfig;
